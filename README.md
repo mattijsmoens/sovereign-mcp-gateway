@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.mattijsmoens/sovereign-mcp-gateway -->
+
 # sovereign-mcp-gateway
 
 **A gating proxy for Model Context Protocol servers.** Point your MCP client at the gateway instead of at your servers. It connects to every upstream you list, merges their tool catalogues into one, and puts every call through a verification chain before it reaches the server that would execute it.
