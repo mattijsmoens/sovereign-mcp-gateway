@@ -5,6 +5,34 @@ All notable changes to this project are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] — 2026-08-22
+
+### Fixed
+
+- **An encoded payload is no longer waved through.** `entropy_policy="warn"`
+  was added in 0.1.2 so that legitimate file paths containing hashes or UUIDs
+  stopped being refused as "possible encoded payload". But a bare base64 blob
+  that decodes to an injection is *also* reported as entropy rather than as
+  injection — so ignoring every entropy finding let it past.
+
+  Found by attacking a clean full install: a base64-encoded
+  `IGNORE ALL PREVIOUS INSTRUCTIONS` was allowed and the commit landed.
+
+  An entropy finding is now only ignorable if the value does not decode into
+  something the filter refuses for another reason. Base64, base32 and hex are
+  attempted; anything that fails to decode, or decodes to non-printable bytes,
+  is skipped, so hashes and paths are unaffected.
+
+  ```
+  /tmp/pytest-of-runner/pytest-0/test0/repo   allowed
+  a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6           allowed
+  base64("IGNORE ALL PREVIOUS INSTRUCTIONS")  refused
+  hex("IGNORE ALL PREVIOUS INSTRUCTIONS")     refused
+  ```
+
+- Six regression tests covering both directions: encoded payloads refused,
+  legitimate high-entropy values still allowed.
+
 ## [0.2.0] — 2026-08-22
 
 ### Added
@@ -150,6 +178,7 @@ First release.
 - **`pii_policy` defaults to `warn`, not `block`.** Real tools return personal
   data as normal output; every `git log` entry carries an author email.
 
+[0.2.1]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.2.1
 [0.2.0]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.2.0
 [0.1.3]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.3
 [0.1.2]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.2

@@ -241,6 +241,37 @@ def _load_consensus(spec):
 # Configuration
 # ---------------------------------------------------------------------------
 
+def _decodings(value):
+    """Plausible decodings of a high-entropy string, cheapest first.
+
+    Only encodings that turn opaque text back into readable text. Anything
+    that fails to decode, or decodes to bytes that are not printable text, is
+    skipped.
+    """
+    import base64
+    import binascii
+
+    found = []
+    stripped = value.strip()
+    attempts = (
+        ("base64", lambda v: base64.b64decode(v + "=" * (-len(v) % 4))),
+        ("base32", lambda v: base64.b32decode(v + "=" * (-len(v) % 8))),
+        ("hex",    lambda v: binascii.unhexlify(v)),
+    )
+    for _name, decode in attempts:
+        try:
+            raw = decode(stripped)
+        except Exception:                               # noqa: BLE001
+            continue
+        try:
+            text = raw.decode("utf-8")
+        except Exception:                               # noqa: BLE001
+            continue
+        if text and text.isprintable():
+            found.append(text)
+    return found
+
+
 class Config:
 
     def __init__(self, data, source="<dict>"):
@@ -421,7 +452,7 @@ class Gateway:
                 continue
             if is_safe:
                 continue
-            if self._is_entropy_only(reason):
+            if self._is_entropy_only(reason, value):
                 logger.info(
                     "entropy signal on %r allowed by entropy_policy=%r: %s",
                     key, self.config.policy["entropy_policy"], reason)
@@ -429,17 +460,50 @@ class Gateway:
             return "text filter: argument %r - %s" % (key, reason)
         return None
 
-    def _is_entropy_only(self, reason):
-        """Is this refusal only the entropy heuristic, and are we ignoring it?
+    def _is_entropy_only(self, reason, value=""):
+        """Is this refusal only the entropy heuristic, on benign content?
+
+        Entropy alone is not a reason to refuse: paths, identifiers and hashes
+        are high-entropy by nature, and refusing them broke ordinary calls.
+
+        But "high entropy" is also what a bare encoded payload looks like. A
+        base64 blob that decodes to an injection is reported by the filter as
+        entropy, not as injection, so ignoring every entropy finding waved it
+        straight through - a hole this check exists to close. Before allowing
+        an entropy finding, decode the value and scan what comes out; if the
+        decoded text is hostile, the original refusal stands.
 
         Matched on the reason text because the filter reports a string rather
-        than a structured code. That is fragile by nature: if the wording
-        changes upstream this stops matching and the gateway becomes stricter,
-        not laxer - which is the safe direction for a match to fail in.
+        than a structured code. Fragile by nature, and fragile in the safe
+        direction: if the wording changes upstream this stops matching and the
+        gateway becomes stricter, not laxer.
         """
         if self.config.policy["entropy_policy"] != "warn":
             return False
-        return "entropy" in (reason or "").lower()
+        if "entropy" not in (reason or "").lower():
+            return False
+        return not self._decodes_to_something_hostile(value)
+
+    def _decodes_to_something_hostile(self, value):
+        """Decode a high-entropy string and re-scan what it turns into."""
+        if not isinstance(value, str) or len(value) < 16:
+            return False
+        for decoded in _decodings(value):
+            try:
+                is_safe, reason, _ = self._input_filter.process(decoded)
+            except Exception:                           # noqa: BLE001
+                continue
+            # Ignore an entropy verdict on the decoded form too, or random
+            # bytes that happen to decode would loop the same false positive
+            # straight back in.
+            if not is_safe and "entropy" not in (reason or "").lower():
+                logger.warning(
+                    "high-entropy argument decoded to something the filter "
+                    "refuses: %s", (reason or "")[:120])
+                return True
+        return False
+
+
 
     def _intent_check(self, exposed_name, arguments):
         if not self._intent:
