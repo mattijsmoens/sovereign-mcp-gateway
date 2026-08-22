@@ -5,6 +5,26 @@ All notable changes to this project are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] — 2026-08-22
+
+### Changed
+
+- **The free tier is now written into the licence.** Previously the README and
+  website described production use as free for individuals and small teams,
+  while plain BSL granted no production use at all — so a solo developer
+  following the pricing page was in violation of the licence, and a company's
+  counsel reading `LICENSE` would have refused the small-scale case that was
+  meant to be allowed.
+
+  The Additional Use Grant now permits production use, without a commercial
+  licence, for an individual or an organisation of four or fewer people.
+
+- The licence is now unmodified BSL 1.1 with a real Change Date of
+  **2030-08-22**, four years after this package's first PyPI release, and the
+  standard "fourth anniversary … whichever comes first" clause intact.
+
+Code is unchanged from 0.1.2.
+
 ## [0.1.2] — 2026-08-22
 
 ### Fixed
@@ -96,6 +116,7 @@ First release.
 - **`pii_policy` defaults to `warn`, not `block`.** Real tools return personal
   data as normal output; every `git log` entry carries an author email.
 
+[0.1.3]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.3
 [0.1.2]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.2
 [0.1.1]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.1
 [0.1.0]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.0

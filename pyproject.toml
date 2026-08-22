@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sovereign-mcp-gateway"
-version = "0.1.2"
+version = "0.1.3"
 description = "A gating proxy for Model Context Protocol servers: policy, verification and one audit trail across every upstream."
 readme = "README.md"
 requires-python = ">=3.10"

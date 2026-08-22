@@ -143,10 +143,16 @@ It also cannot protect against a compromised upstream returning correct-looking 
 
 **Business Source License 1.1** — see [LICENSE](LICENSE).
 
-In short: the source is public, and you may read it, modify it, and use it for
-development, evaluation and any other non-production purpose at no cost.
-**Production use requires a commercial licence.** Each version converts to
-Apache 2.0 on its Change Date, four years after publication.
+The source is public. You may read it, modify it, create derivative works and
+use it for development, evaluation and any other non-production purpose at no
+cost.
+
+**Production use is also free** for an individual, or an organisation of four
+or fewer people — that is written into the licence as an Additional Use Grant,
+not just stated here. Larger organisations need a commercial licence.
+
+Each version converts to Apache 2.0 on its Change Date, four years after
+publication.
 
 To license it for production, or to ask whether your use needs one:
 **contact@sovereign-shield.net**
