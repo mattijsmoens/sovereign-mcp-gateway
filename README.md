@@ -13,6 +13,24 @@ The gateway is itself an MCP server, so any client that speaks MCP works with no
 
 ---
 
+## What it stops
+
+An agent reads a GitHub issue whose body carries an instruction aimed at the model rather than at you. It is persuaded, and calls `git_commit`.
+
+| | commits after | injected commit present |
+| --- | --- | --- |
+| straight to `mcp-server-git` | 2 | yes |
+| through the gateway | 1 | no |
+
+Same tool, same arguments, same server. The difference is whether anything was in a position to refuse.
+
+Read the walkthrough: **[Your agent reads an issue](docs/your-agent-reads-an-issue.md)** — or run it:
+
+```bash
+pip install "sovereign-mcp-gateway[all]" mcp-server-git
+python examples/poisoned_issue.py
+```
+
 ## Why a proxy and not a library
 
 A library has to be adopted by whoever wrote the server. A proxy protects servers you cannot modify — which is most of them, because the useful MCP servers are published packages someone else maintains.
