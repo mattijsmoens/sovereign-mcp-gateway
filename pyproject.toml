@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sovereign-mcp-gateway"
-version = "0.1.1"
+version = "0.1.2"
 description = "A gating proxy for Model Context Protocol servers: policy, verification and one audit trail across every upstream."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-authors = [{ name = "Mattijs Moens" }]
+authors = [{ name = "Mattijs Moens", email = "contact@sovereign-shield.net" }]
 keywords = ["mcp", "gateway", "proxy", "model-context-protocol", "ai-security", "agent", "audit"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -53,6 +53,7 @@ sovereign-mcp-gateway = "sovereign_gateway.gateway:main"
 [project.urls]
 Homepage = "https://github.com/mattijsmoens/sovereign-mcp-gateway"
 Issues = "https://github.com/mattijsmoens/sovereign-mcp-gateway/issues"
+Licensing = "https://github.com/mattijsmoens/sovereign-mcp-gateway#licence"
 
 [tool.setuptools.packages.find]
 include = ["sovereign_gateway*"]
