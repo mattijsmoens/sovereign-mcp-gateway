@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: tests (py${{ matrix.python }} ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        # 3.10 is the floor: the MCP SDK requires it.
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install with every layer
+        run: |
+          python -m pip install --upgrade pip pytest
+          python -m pip install ".[all]"
+
+      - name: Every layer resolved
+        run: |
+          python -c "
+          import importlib.metadata as m
+          for p in ('mcp','sovereign-mcp','intentshield','sovereign-shield','logicshield'):
+              print(p, m.version(p))
+          "
+
+      - name: Tests
+        run: python -m pytest tests/ -q -p no:randomly
+
+  live-upstreams:
+    name: proxies real published servers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the gateway and two real upstream servers
+        run: |
+          python -m pip install --upgrade pip pytest
+          # These pin their own mcp version - deliberately not overridden, so
+          # CI sees whatever the ecosystem actually resolves to.
+          python -m pip install mcp-server-git mcp-server-sqlite
+          python -m pip install ".[all]"
+          python -c "import importlib.metadata as m; print('mcp', m.version('mcp'))"
+
+      - name: git identity for the fixture repository
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI"
+
+      - name: Legitimate calls pass, attacks are refused, upstreams unchanged
+        run: python -m pytest tests/test_gateway.py -v -p no:randomly
+
+  package:
+    name: distribution is installable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build twine
+
+      - name: Build
+        run: python -m build
+
+      - name: Validate metadata
+        run: python -m twine check dist/*
+
+      - name: Install the wheel into a clean environment and run the CLI
+        run: |
+          python -m venv /tmp/fresh
+          /tmp/fresh/bin/python -m pip install --quiet dist/*.whl
+          /tmp/fresh/bin/sovereign-mcp-gateway --help > /dev/null
+          # A config with no upstreams must fail loudly, not start empty.
+          echo '{}' > /tmp/empty.json
+          if /tmp/fresh/bin/sovereign-mcp-gateway --config /tmp/empty.json --check; then
+            echo "an empty config was accepted"; exit 1
+          fi
+          echo "CLI installed and rejects an empty config"

@@ -1,0 +1,27 @@
+{
+  "servers": {
+    "git": {
+      "command": "mcp-server-git",
+      "args": ["--repository", "/path/to/your/repo"]
+    },
+    "sqlite": {
+      "command": "mcp-server-sqlite",
+      "args": ["--db-path", "/path/to/your.db"]
+    }
+  },
+
+  "policy": {
+    "deny_tools": ["git__git_reset", "sqlite__write_query"],
+    "allow_tools": null,
+    "pii_policy": "warn",
+    "namespace": true,
+    "fail_closed": true,
+    "rate_limit_interval": 0
+  },
+
+  "audit": {
+    "path": "gateway-audit.jsonl"
+  },
+
+  "output_rules": []
+}

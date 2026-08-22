@@ -1,0 +1,6 @@
+# Byte-stable across platforms. Line-ending normalisation on checkout would
+# otherwise change file contents between a clone and the machine that built
+# the release.
+* text=auto eol=lf
+*.png binary
+*.gguf binary

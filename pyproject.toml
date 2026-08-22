@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sovereign-mcp-gateway"
+version = "0.1.0"
+description = "A gating proxy for Model Context Protocol servers: policy, verification and one audit trail across every upstream."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Mattijs Moens" }]
+keywords = ["mcp", "gateway", "proxy", "model-context-protocol", "ai-security", "agent", "audit"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: System :: Networking :: Monitoring",
+]
+
+# The gateway is a composition layer: it depends downward on the packages it
+# composes, and nothing depends on it. sovereign-mcp supplies the frozen
+# registry, the verification chain and the hash-chained audit log.
+#
+# Python >=3.10 because the MCP SDK requires it; sovereign-mcp itself still
+# supports 3.9 and is unaffected.
+dependencies = [
+    "mcp>=1.29",
+    "sovereign-mcp>=1.5.0",
+]
+
+[project.optional-dependencies]
+# Each optional layer is one package. Without them the gateway still runs and
+# prints which layers are active at startup, so a partial install degrades
+# visibly rather than silently.
+intent = ["intentshield>=1.3.0"]
+text = ["sovereign-shield>=3.4.2"]
+rules = ["logicshield>=1.0.2"]
+all = [
+    "intentshield>=1.3.0",
+    "sovereign-shield>=3.4.2",
+    "logicshield>=1.0.2",
+]
+
+[project.scripts]
+sovereign-mcp-gateway = "sovereign_gateway.gateway:main"
+
+[project.urls]
+Homepage = "https://github.com/mattijsmoens/sovereign-mcp-gateway"
+Issues = "https://github.com/mattijsmoens/sovereign-mcp-gateway/issues"
+
+[tool.setuptools.packages.find]
+include = ["sovereign_gateway*"]
