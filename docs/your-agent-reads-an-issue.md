@@ -97,6 +97,11 @@ pip install "sovereign-mcp-gateway[all]" mcp-server-git
 python examples/poisoned_issue.py
 ```
 
+`[all]` rather than the base install, because this run shows the text filter
+refusing the call. The base install refuses it too, one layer later at
+`input_deception` — the extras add encoded and multilingual coverage on top,
+not the coverage itself.
+
 It builds a throwaway repository, runs both phases, and prints `git log` after each. The output above is a real run, not a mock-up.
 
 To point it at your own servers:

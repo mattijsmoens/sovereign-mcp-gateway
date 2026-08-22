@@ -5,11 +5,13 @@
 **A gating proxy for Model Context Protocol servers.** Point your MCP client at the gateway instead of at your servers. It connects to every upstream you list, merges their tool catalogues into one, and puts every call through a verification chain before it reaches the server that would execute it.
 
 ```bash
-pip install "sovereign-mcp-gateway[all]"
+pip install sovereign-mcp-gateway
 sovereign-mcp-gateway --config gateway.json
 ```
 
 The gateway is itself an MCP server, so any client that speaks MCP works with no changes.
+
+That base install is a working gateway. Four optional extras add further layers on top — see [Installing](#installing).
 
 ---
 
@@ -85,12 +87,43 @@ policy → intent → text-filter → frozen-verify → [ call executes ] → ou
 | logic-rules | `logicshield` | the result is inconsistent with rules you configured |
 | audit | `sovereign-mcp` | — records every call, allowed or refused, in a hash-chained log |
 
-Only `sovereign-mcp` is required. The optional layers install as extras, and the gateway prints which ones are active at startup — a partial install degrades visibly rather than silently.
+## Installing
+
+The base install is a working gateway, not a stub:
 
 ```bash
-pip install sovereign-mcp-gateway            # policy, frozen-verify, audit
-pip install "sovereign-mcp-gateway[all]"     # every layer
+pip install sovereign-mcp-gateway
 ```
+
+That gives you **policy → frozen-verify → audit**, which already refuses a tool no upstream exposes, an argument of the wrong type, an undeclared parameter, a tool on your deny list, and prompt injection in an argument. Nothing else needed.
+
+Each extra adds a layer on top:
+
+| Extra | Adds | Worth it when |
+| --- | --- | --- |
+| `[text]` | `sovereign-shield` — a deeper pass over string arguments: 22 languages, and seven-variant decoding for payloads hidden in base64, hex, ROT13, leetspeak or reversed text | Your agents read text from anywhere you don't control. The base install catches `IGNORE ALL PREVIOUS INSTRUCTIONS`; it will not catch the same sentence base64-encoded, or written in Dutch |
+| `[intent]` | `intentshield` — a behavioural floor applied regardless of which tool was called: shell bans, delete bans, credential URLs, malware syntax | You want a backstop that doesn't depend on getting every tool's schema right |
+| `[rules]` | `logicshield` — consistency rules you write for tool *output* | You can express what a correct result looks like. Does nothing until you set `output_rules` |
+| `[consensus]` | `requests` — needed by Layer C's HTTP providers | You're enabling N-model consensus with a hosted provider |
+
+Combine what you want, or take everything:
+
+```bash
+pip install "sovereign-mcp-gateway[text]"             # one extra
+pip install "sovereign-mcp-gateway[text,intent]"      # several
+pip install "sovereign-mcp-gateway[all]"              # every layer
+```
+
+All four extras are small pure-Python packages — `[all]` adds no compiled dependencies and no service to run.
+
+**A partial install degrades visibly.** The gateway prints its active layers at startup, so you can always see what is actually running:
+
+```
+layers:   policy -> frozen-verify -> audit                                  # base
+layers:   policy -> intent -> text-filter -> frozen-verify -> audit         # [all]
+```
+
+If a layer isn't on that line, it isn't running — whatever you think you installed.
 
 ## Verified end to end
 
