@@ -120,4 +120,12 @@ It also cannot protect against a compromised upstream returning correct-looking 
 
 ## Licence
 
-BSL 1.1 — see [LICENSE](LICENSE).
+**Business Source License 1.1** — see [LICENSE](LICENSE).
+
+In short: the source is public, and you may read it, modify it, and use it for
+development, evaluation and any other non-production purpose at no cost.
+**Production use requires a commercial licence**, which you can obtain from the
+author. Each version converts to Apache 2.0 on its Change Date, four years
+after publication.
+
+If you want to run this in production, get in touch.
