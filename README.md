@@ -131,6 +131,7 @@ With `namespace` on (the default) a tool is exposed as `git__git_status`. Two up
 - **`pii_policy`** defaults to `warn`, not `block`. Real tools return personal data as normal output — every `git log` entry carries an author email — and blocking those makes the gateway unusable. Set `block` when your tools should never emit PII.
 - **`fail_closed`** decides what happens when a layer itself errors. Default: refuse.
 - **`rate_limit_interval`** is `0`, which disables the behavioural floor's own inter-action delay. That delay is right for one agent taking deliberate steps and wrong for a proxy, where a burst of tool calls is ordinary traffic.
+- **`entropy_policy`** defaults to `warn`. The text filter's entropy heuristic hunts for encoded payloads hidden in prose, but tool arguments are routinely structured — paths, identifiers, hashes — where high entropy is normal. A temporary directory path alone was enough to have a legitimate call refused. Set `block` when your arguments really are prose.
 
 ## What this does not do
 

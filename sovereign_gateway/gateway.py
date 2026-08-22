@@ -93,6 +93,13 @@ DEFAULT_POLICY = {
     # legitimate bursts; the per-tool limits in the frozen registry are the
     # right place to throttle.
     "rate_limit_interval": 0,
+    # The text filter's entropy heuristic looks for encoded payloads hidden in
+    # prose. Tool arguments are frequently structured - paths, identifiers,
+    # hashes, query strings - where high entropy is normal and expected, so
+    # applying a prose detector to them produces false refusals. A temporary
+    # directory path is enough to trip it. Warn by default; "block" restores
+    # the strict behaviour for deployments whose arguments really are prose.
+    "entropy_policy": "warn",
 }
 
 
@@ -189,6 +196,10 @@ class Config:
             raise GatewayError(
                 "policy.pii_policy must be 'block', 'warn' or 'off', got %r"
                 % self.policy["pii_policy"])
+        if self.policy["entropy_policy"] not in ("block", "warn"):
+            raise GatewayError(
+                "policy.entropy_policy must be 'block' or 'warn', got %r"
+                % self.policy["entropy_policy"])
         self.audit_path = (data.get("audit") or {}).get("path")
         self.logic_rules = data.get("output_rules") or []
 
@@ -331,9 +342,27 @@ class Gateway:
                     return "text filter failed on %r: %s" % (key, exc)
                 logger.warning("text filter error on %r: %s", key, exc)
                 continue
-            if not is_safe:
-                return "text filter: argument %r - %s" % (key, reason)
+            if is_safe:
+                continue
+            if self._is_entropy_only(reason):
+                logger.info(
+                    "entropy signal on %r allowed by entropy_policy=%r: %s",
+                    key, self.config.policy["entropy_policy"], reason)
+                continue
+            return "text filter: argument %r - %s" % (key, reason)
         return None
+
+    def _is_entropy_only(self, reason):
+        """Is this refusal only the entropy heuristic, and are we ignoring it?
+
+        Matched on the reason text because the filter reports a string rather
+        than a structured code. That is fragile by nature: if the wording
+        changes upstream this stops matching and the gateway becomes stricter,
+        not laxer - which is the safe direction for a match to fail in.
+        """
+        if self.config.policy["entropy_policy"] != "warn":
+            return False
+        return "entropy" in (reason or "").lower()
 
     def _intent_check(self, exposed_name, arguments):
         if not self._intent:
