@@ -166,6 +166,77 @@ def _load_logic_shield(rules_config):
     return LogicShield(rules) if rules else None
 
 
+def _load_consensus(spec):
+    """Build Layer C from config, or return None when it is not configured.
+
+    Layer C asks several independent models to extract the same structured
+    document from a tool's output, canonicalises each answer and compares the
+    hashes. It is the only layer that talks to a model, so it is off unless
+    asked for, and it is the only one that adds latency and cost per call.
+
+    Config shape::
+
+        "consensus": {
+          "providers": [
+            {"type": "local",      "model": "llama3.1:8b"},
+            {"type": "local",      "model": "qwen2.5:7b",
+             "base_url": "http://localhost:11434/v1"},
+            {"type": "openrouter", "model": "anthropic/claude-3.5-sonnet",
+             "api_key_env": "OPENROUTER_API_KEY"}
+          ]
+        }
+
+    At least two providers are required - a single model cannot disagree with
+    itself, and a "consensus" of one would report agreement on every call.
+    """
+    if not spec:
+        return None
+    providers_spec = spec.get("providers") or []
+    if len(providers_spec) < 2:
+        raise GatewayError(
+            "consensus.providers needs at least two entries; got %d. One model "
+            "cannot disagree with itself, so a single provider would report "
+            "agreement on every call." % len(providers_spec))
+
+    try:
+        from sovereign_mcp.consensus import (
+            ConsensusVerifier, LocalMCPProvider, OpenRouterMCPProvider)
+    except Exception as exc:                            # noqa: BLE001
+        raise GatewayError("Layer C is configured but unavailable: %s" % exc)
+
+    built, seen = [], set()
+    for entry in providers_spec:
+        kind = (entry.get("type") or "").lower()
+        model = entry.get("model")
+        if not model:
+            raise GatewayError("each consensus provider needs a `model`.")
+        if model in seen:
+            raise GatewayError(
+                "consensus provider %r is listed twice. Agreement between two "
+                "instances of the same model is not independent verification."
+                % model)
+        seen.add(model)
+        if kind == "local":
+            built.append(LocalMCPProvider(
+                model, base_url=entry.get("base_url", "http://localhost:11434/v1")))
+        elif kind == "openrouter":
+            env = entry.get("api_key_env", "OPENROUTER_API_KEY")
+            key = os.environ.get(env)
+            if not key:
+                raise GatewayError(
+                    "consensus provider %r needs an API key in $%s, which is "
+                    "not set. Refusing to start rather than silently running "
+                    "without Layer C." % (model, env))
+            built.append(OpenRouterMCPProvider(model, key))
+        else:
+            raise GatewayError(
+                "unknown consensus provider type %r - expected 'local' or "
+                "'openrouter'." % entry.get("type"))
+
+    return ConsensusVerifier(built[0], built[1],
+                             consensus_models=built[2:] or None)
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -202,6 +273,7 @@ class Config:
                 % self.policy["entropy_policy"])
         self.audit_path = (data.get("audit") or {}).get("path")
         self.logic_rules = data.get("output_rules") or []
+        self.consensus = data.get("consensus") or None
 
     @classmethod
     def load(cls, path):
@@ -231,6 +303,7 @@ class Gateway:
         self._input_filter = None
         self._intent = None
         self._logic = None
+        self._consensus = None
         self._audit = None
 
     # -- startup --------------------------------------------------------
@@ -288,8 +361,10 @@ class Gateway:
             from sovereign_mcp.audit_log import AuditLog
             self._audit = AuditLog(self.config.audit_path)
 
+        self._consensus = _load_consensus(self.config.consensus)
         self.gate = OutputGate(
             registry.freeze(),
+            consensus_verifier=self._consensus,
             audit_log=self._audit,
             pii_policy=self.config.policy["pii_policy"],
         )
@@ -307,6 +382,8 @@ class Gateway:
             layers.insert(1, "intent")
         if self._input_filter:
             layers.insert(-1, "text-filter")
+        if self._consensus:
+            layers.append("consensus")
         if self._logic:
             layers.append("logic-rules")
         if self._audit:
@@ -607,6 +684,44 @@ def main(argv=None):
     return 0
 
 
+#: A deliberately trivial document for the startup probe. Two models that
+#: cannot agree on this will never agree on real tool output, and every call
+#: through the gateway would be refused.
+_PROBE_SCHEMA = {"branch": {"type": "string"}, "clean": {"type": "boolean"}}
+_PROBE_OUTPUT = {"text": "On branch main\nnothing to commit, working tree clean"}
+
+
+def probe_consensus(verifier):
+    """Run one real consensus call and report whether the models agree.
+
+    Layer C compares canonical hashes of each model's structured answer, so
+    two models that are both semantically correct but structurally different
+    never agree. A weaker model that echoes the schema back -
+    ``{"branch": {"type": "string", "value": "main"}}`` rather than
+    ``{"branch": "main"}`` - produces a permanent mismatch, and every call is
+    then refused for a reason that correctly reads "the models disagreed",
+    because they did.
+
+    Without this probe the first sign of a bad pairing is production refusing
+    everything. It costs one real call per configured model.
+
+    Returns (status, detail) where status is "agree", "mismatch" or "error".
+    """
+    try:
+        result = verifier.verify(_PROBE_OUTPUT, _PROBE_SCHEMA)
+    except Exception as exc:                            # noqa: BLE001
+        return "error", "%s: %s" % (type(exc).__name__, str(exc)[:200])
+    if getattr(result, "match", False):
+        return "agree", ""
+    reason = getattr(result, "reason", "") or ""
+    # The verifier distinguishes these in its reason string: a provider that
+    # could not be reached reads "Model N (...) error: ...", while a genuine
+    # disagreement reads "Consensus MISMATCH: ...". Both refuse, correctly,
+    # but only one of them means "look at your config".
+    kind = "error" if " error: " in reason else "mismatch"
+    return kind, reason[:220]
+
+
 def _check(config):
     """Dry run: connect, list, report, exit."""
     import anyio
@@ -647,6 +762,26 @@ def _check(config):
         upstream, real = gateway.routes[exposed]
         mark = "  [DENIED]" if ({exposed, real} & denied) else ""
         print("%-38s %s.%s%s" % (exposed[:38], upstream, real, mark))
+    if gateway._consensus is not None:
+        print()
+        print("LAYER C  - probing the configured models with one real call")
+        print("-" * 74)
+        status, detail = probe_consensus(gateway._consensus)
+        if status == "agree":
+            print("  OK. The configured models produced identical documents.")
+            print("  Layer C will pass ordinary output rather than refusing it.")
+        elif status == "mismatch":
+            print("  MISMATCH on a trivial document. These models will refuse")
+            print("  every call, and the reason will read as disagreement.")
+            print("  " + detail)
+            print()
+            print("  Usually one model echoes the schema instead of filling it.")
+            print("  Replace it, or remove the consensus section to run without")
+            print("  Layer C rather than with a layer that refuses everything.")
+        else:
+            print("  A provider could not be reached, so nothing was verified.")
+            print("  " + detail)
+
     print()
     print("%d tools exposed. Point your MCP client at:" % len(gateway.routes))
     print("    sovereign-mcp-gateway --config %s" % config.source)

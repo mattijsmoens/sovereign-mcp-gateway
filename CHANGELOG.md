@@ -5,6 +5,40 @@ All notable changes to this project are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-08-22
+
+### Added
+
+- **Layer C is reachable.** N-model consensus can now be switched on from the
+  config. It was described in the README as available "when you configure
+  model providers", but there was no way to configure them — `Gateway` built
+  its `OutputGate` with no verifier, so no config could have enabled it.
+
+  ```json
+  "consensus": {
+    "providers": [
+      {"type": "local", "model": "llama3.1:8b"},
+      {"type": "local", "model": "qwen2.5:7b"},
+      {"type": "openrouter", "model": "anthropic/claude-3.5-sonnet",
+       "api_key_env": "OPENROUTER_API_KEY"}
+    ]
+  }
+  ```
+
+  Two provider types: `local` (any OpenAI-compatible endpoint, `base_url`
+  defaults to Ollama's) and `openrouter` (key read from the named environment
+  variable, never stored in the config). All run at `temperature = 0`.
+
+  Three conditions are checked at startup rather than discovered in
+  production: at least two providers, no duplicate models, and a missing API
+  key refuses to start rather than running with the layer silently off. A
+  consensus of one would report agreement on every call, which is worse than
+  no layer at all because it looks like verification.
+
+  `--check` lists `consensus` among the active layers when it is running.
+
+- Eight tests covering every rejection path and the off-by-default case.
+
 ## [0.1.3] — 2026-08-22
 
 ### Changed
@@ -116,6 +150,7 @@ First release.
 - **`pii_policy` defaults to `warn`, not `block`.** Real tools return personal
   data as normal output; every `git log` entry carries an author email.
 
+[0.2.0]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.2.0
 [0.1.3]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.3
 [0.1.2]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.2
 [0.1.1]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.1

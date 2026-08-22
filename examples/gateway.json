@@ -2,26 +2,45 @@
   "servers": {
     "git": {
       "command": "mcp-server-git",
-      "args": ["--repository", "/path/to/your/repo"]
+      "args": [
+        "--repository",
+        "/path/to/your/repo"
+      ]
     },
     "sqlite": {
       "command": "mcp-server-sqlite",
-      "args": ["--db-path", "/path/to/your.db"]
+      "args": [
+        "--db-path",
+        "/path/to/your.db"
+      ]
     }
   },
-
   "policy": {
-    "deny_tools": ["git__git_reset", "sqlite__write_query"],
+    "deny_tools": [
+      "git__git_reset",
+      "sqlite__write_query"
+    ],
     "allow_tools": null,
     "pii_policy": "warn",
     "namespace": true,
     "fail_closed": true,
     "rate_limit_interval": 0
   },
-
   "audit": {
     "path": "gateway-audit.jsonl"
   },
-
-  "output_rules": []
+  "output_rules": [],
+  "consensus": {
+    "_comment": "Optional. Layer C - the only layer that calls a model. Remove this whole section to leave it off. At least two distinct models are required.",
+    "providers": [
+      {
+        "type": "local",
+        "model": "llama3.1:8b"
+      },
+      {
+        "type": "local",
+        "model": "qwen2.5:7b"
+      }
+    ]
+  }
 }

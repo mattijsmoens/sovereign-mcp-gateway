@@ -110,6 +110,74 @@ Afterwards the repository still holds one commit and the database holds exactly 
 
 Those cases are the test suite, not a screenshot: `pytest tests/ -v`.
 
+
+## Layer C: N-model consensus
+
+Every other layer is deterministic and local. Layer C is the exception: it asks several **independent** models to extract the same structured document from a tool's result, canonicalises each answer, and compares the SHA-256 hashes. Agreement is decided by hash, not by prose.
+
+It is off unless configured, because it is the only layer that costs money and latency per call, and the only one that sends tool output to a model.
+
+```json
+{
+  "servers": { "...": {} },
+  "consensus": {
+    "providers": [
+      {"type": "local", "model": "llama3.1:8b"},
+      {"type": "local", "model": "qwen2.5:7b", "base_url": "http://localhost:11434/v1"},
+      {"type": "openrouter", "model": "anthropic/claude-3.5-sonnet",
+       "api_key_env": "OPENROUTER_API_KEY"}
+    ]
+  }
+}
+```
+
+Two provider types: **`local`** (any OpenAI-compatible endpoint — Ollama, vLLM, LM Studio; `base_url` defaults to `http://localhost:11434/v1`) and **`openrouter`** (the key is read from the named environment variable, never written in the config).
+
+Three rules the gateway enforces at startup rather than discovering at runtime:
+
+- **At least two providers.** One model cannot disagree with itself; a consensus of one reports agreement on every call, which is worse than no layer because it looks like verification.
+- **No duplicate models.** Two instances of the same model agreeing is not independent verification.
+- **A missing API key refuses to start.** It does not fall back to running without the layer.
+
+All providers run at `temperature = 0`, enforced in the constructor.
+
+### Check your models agree before you trust the layer
+
+`--check` runs **one real consensus call** against your configured models and tells you what happened. This matters more than it sounds:
+
+```
+LAYER C  - probing the configured models with one real call
+--------------------------------------------------------------
+  OK. The configured models produced identical documents.
+  Layer C will pass ordinary output rather than refusing it.
+```
+
+Consensus compares canonical hashes, so two models that are both *semantically* right but structurally different never agree. A weaker model that echoes the schema back —
+
+```json
+{"branch": {"type": "string", "value": "main"}}   instead of   {"branch": "main"}
+```
+
+— mismatches on every call, forever, and the gateway refuses everything with a reason that correctly reads "the models disagreed". Because they did.
+
+The probe distinguishes the three outcomes:
+
+| | means |
+| --- | --- |
+| **OK** | the models produced identical documents; the layer is usable |
+| **MISMATCH** | they disagree on a trivial document and will refuse every call — replace a model, or drop the section |
+| **provider unreachable** | nothing was verified; a key, a model ID or an endpoint is wrong |
+
+Install `sovereign-mcp-gateway[consensus]` or `[all]` — the HTTP providers need `requests`, which the core library deliberately does not depend on.
+
+`--check` also lists the active layers, so you can confirm at a glance:
+
+```
+layers:   policy -> intent -> text-filter -> frozen-verify -> consensus -> audit
+```
+
+If `consensus` is absent from that line, it is not running, whatever the config says.
+
 ## Namespacing
 
 With `namespace` on (the default) a tool is exposed as `git__git_status`. Two upstreams offering the same tool name cannot collide, shadow each other, or be reached through the wrong namespace. Turn it off only when you have a single upstream.

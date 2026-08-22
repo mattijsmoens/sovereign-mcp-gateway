@@ -3,7 +3,7 @@
   "name": "io.github.mattijsmoens/sovereign-mcp-gateway",
   "title": "Sovereign Gateway",
   "description": "Gating proxy for MCP servers: policy, verification and one audit trail across upstreams.",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "repository": {
     "url": "https://github.com/mattijsmoens/sovereign-mcp-gateway",
     "source": "github"
@@ -14,7 +14,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "sovereign-mcp-gateway",
-      "version": "0.1.3",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
       },
