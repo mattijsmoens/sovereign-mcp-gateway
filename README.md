@@ -4,6 +4,8 @@
 
 **A gating proxy for Model Context Protocol servers.** Point your MCP client at the gateway instead of at your servers. It connects to every upstream you list, merges their tool catalogues into one, and puts every call through a verification chain before it reaches the server that would execute it.
 
+[![Built on patent-pending components](https://img.shields.io/badge/built%20on-patent--pending%20components-brightgreen.svg)]()
+
 ```bash
 pip install sovereign-mcp-gateway
 sovereign-mcp-gateway --config gateway.json
@@ -81,7 +83,7 @@ policy → intent → text-filter → frozen-verify → [ call executes ] → ou
 | --- | --- | --- |
 | policy | — | the tool is on a deny list, or absent from an allow list |
 | intent | `intentshield` | the call fails the behavioural floor |
-| text-filter | `sovereign-shield` | an argument carries injection, in any of 22 languages or seven encodings |
+| text-filter | `sovereign-shield` | an argument carries injection, in any of 21 languages or seven encodings |
 | frozen-verify | `sovereign-mcp` | the call disagrees with the tool definition frozen at startup |
 | output-verify | `sovereign-mcp` | the result fails schema, deception, PII or content checks |
 | logic-rules | `logicshield` | the result is inconsistent with rules you configured |
@@ -101,7 +103,7 @@ Each extra adds a layer on top:
 
 | Extra | Adds | Worth it when |
 | --- | --- | --- |
-| `[text]` | `sovereign-shield` — a deeper pass over string arguments: 22 languages, and seven-variant decoding for payloads hidden in base64, hex, ROT13, leetspeak or reversed text | Your agents read text from anywhere you don't control. The base install catches `IGNORE ALL PREVIOUS INSTRUCTIONS`; it will not catch the same sentence base64-encoded, or written in Dutch |
+| `[text]` | `sovereign-shield` — a deeper pass over string arguments: 21 languages, and seven-variant decoding for payloads hidden in base64, hex, ROT13, leetspeak or reversed text | Your agents read text from anywhere you don't control. The base install catches `IGNORE ALL PREVIOUS INSTRUCTIONS`; it will not catch the same sentence base64-encoded, or written in Dutch |
 | `[intent]` | `intentshield` — a behavioural floor applied regardless of which tool was called: shell bans, delete bans, credential URLs, malware syntax | You want a backstop that doesn't depend on getting every tool's schema right |
 | `[rules]` | `logicshield` — consistency rules you write for tool *output* | You can express what a correct result looks like. Does nothing until you set `output_rules` |
 | `[consensus]` | `requests` — needed by Layer C's HTTP providers | You're enabling N-model consensus with a hosted provider |

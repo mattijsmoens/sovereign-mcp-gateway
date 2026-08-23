@@ -5,6 +5,19 @@ All notable changes to this project are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-08-23
+
+### Changed
+
+- The README's language-coverage figure said 22; the actual count in
+  `sovereign-shield`'s keyword table is **21**. Corrected in both places it
+  appeared.
+- Added a **built on patent-pending components** badge. The gateway composes the
+  libraries that implement FrozenNamespace and N-model consensus rather than
+  implementing either itself, so it does not claim those applications as its own.
+
+No code changes.
+
 ## [0.2.1] — 2026-08-22
 
 ### Fixed
@@ -178,6 +191,7 @@ First release.
 - **`pii_policy` defaults to `warn`, not `block`.** Real tools return personal
   data as normal output; every `git log` entry carries an author email.
 
+[0.2.2]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.2.2
 [0.2.1]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.2.1
 [0.2.0]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.2.0
 [0.1.3]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.1.3
