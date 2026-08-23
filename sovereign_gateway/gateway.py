@@ -675,13 +675,19 @@ async def serve(config, name="sovereign-gateway"):
 
 USAGE = """sovereign-mcp-gateway - a gating proxy for MCP servers
 
+  sovereign-mcp-gateway --init
   sovereign-mcp-gateway --config gateway.json
 
 Your client talks to the gateway; the gateway talks to your servers, and every
 tool call goes through the verification chain first.
 
 Options
-  --config PATH   Gateway configuration (required).
+  --init          Write a starter gateway.json, importing the servers already
+                  configured in Claude Desktop, Claude Code, Cursor, VS Code or
+                  Windsurf. Start here if you have not got a config yet.
+  --force         With --init, overwrite an existing file.
+  --config PATH   Gateway configuration (required, except with --init where it
+                  names the file to write; defaults to ./gateway.json).
   --check         Connect, build the catalogue, print it and exit. Use this to
                   confirm the config before pointing a client at it.
   --verbose       Log each declined call and the active layers.
@@ -706,10 +712,15 @@ def main(argv=None):
         return 0
 
     config_path, check, verbose = None, False, False
+    init, force = False, False
     while argv:
         arg = argv.pop(0)
         if arg == "--config":
             config_path = argv.pop(0) if argv else None
+        elif arg == "--init":
+            init = True
+        elif arg == "--force":
+            force = True
         elif arg == "--check":
             check = True
         elif arg == "--verbose":
@@ -717,6 +728,9 @@ def main(argv=None):
         else:
             sys.stderr.write("Unknown option: %s\n\n%s" % (arg, USAGE))
             return 2
+
+    if init:
+        return _init(config_path or "gateway.json", force=force)
 
     if not config_path:
         sys.stderr.write("--config is required.\n\n%s" % USAGE)
@@ -784,6 +798,153 @@ def probe_consensus(verifier):
     # but only one of them means "look at your config".
     kind = "error" if " error: " in reason else "mismatch"
     return kind, reason[:220]
+
+
+# ---------------------------------------------------------------------------
+# --init: build a gateway.json from the MCP config the user already has
+# ---------------------------------------------------------------------------
+
+#: Where the common clients keep their MCP server lists. Each entry is
+#: (label, path, key) - the key differs because VS Code settled on "servers"
+#: while everyone else uses "mcpServers".
+def _client_config_locations():
+    home = os.path.expanduser("~")
+    appdata = os.environ.get("APPDATA") or os.path.join(home, "AppData", "Roaming")
+    return [
+        ("Claude Desktop", os.path.join(appdata, "Claude", "claude_desktop_config.json"), "mcpServers"),
+        ("Claude Desktop", os.path.join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json"), "mcpServers"),
+        ("Claude Desktop", os.path.join(home, ".config", "Claude", "claude_desktop_config.json"), "mcpServers"),
+        ("Claude Code (project)", os.path.join(os.getcwd(), ".mcp.json"), "mcpServers"),
+        ("Claude Code (user)", os.path.join(home, ".claude.json"), "mcpServers"),
+        ("Cursor (project)", os.path.join(os.getcwd(), ".cursor", "mcp.json"), "mcpServers"),
+        ("Cursor (user)", os.path.join(home, ".cursor", "mcp.json"), "mcpServers"),
+        ("VS Code (project)", os.path.join(os.getcwd(), ".vscode", "mcp.json"), "servers"),
+        ("Windsurf", os.path.join(home, ".codeium", "windsurf", "mcp_config.json"), "mcpServers"),
+    ]
+
+
+#: Anything whose command looks like this gateway. Importing it would make the
+#: gateway proxy itself, which loops until something gives up. A user running
+#: --init a second time, after pointing their client at the gateway, would hit
+#: exactly that.
+def _is_self(spec):
+    blob = " ".join([str(spec.get("command", ""))] +
+                    [str(a) for a in (spec.get("args") or [])]).lower()
+    return "sovereign-mcp-gateway" in blob or "sovereign_gateway" in blob
+
+
+def _discover_upstreams():
+    """Return (upstreams, sources, skipped) from every client config found."""
+    upstreams, sources, skipped = {}, [], []
+    seen_paths = set()
+    for label, path, key in _client_config_locations():
+        if not os.path.isfile(path) or path in seen_paths:
+            continue
+        seen_paths.add(path)
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except Exception as exc:                            # noqa: BLE001
+            skipped.append((path, "unreadable: %s" % exc))
+            continue
+        servers = data.get(key)
+        if not isinstance(servers, dict) or not servers:
+            continue
+        found_here = 0
+        for name, spec in servers.items():
+            if not isinstance(spec, dict) or not spec.get("command"):
+                skipped.append((name, "no command, probably a remote/SSE server"))
+                continue
+            if _is_self(spec):
+                skipped.append((name, "this gateway - importing it would proxy itself"))
+                continue
+            safe = name.replace(NAMESPACE_SEP, "_")
+            if safe in upstreams:
+                skipped.append((name, "already imported from another client"))
+                continue
+            entry = {"command": spec["command"]}
+            if spec.get("args"):
+                entry["args"] = list(spec["args"])
+            if spec.get("env"):
+                entry["env"] = dict(spec["env"])
+            upstreams[safe] = entry
+            found_here += 1
+        if found_here:
+            sources.append((label, path, found_here))
+    return upstreams, sources, skipped
+
+
+_TEMPLATE_SERVERS = {
+    "git": {"command": "mcp-server-git", "args": ["--repository", "/path/to/your/repo"]},
+    "sqlite": {"command": "mcp-server-sqlite", "args": ["--db-path", "/path/to/your.db"]},
+}
+
+
+def _init(path, force=False):
+    """Write a starter gateway.json, importing whatever the user already runs."""
+    if os.path.exists(path) and not force:
+        sys.stderr.write(
+            "%s already exists. Refusing to overwrite it.\n"
+            "Pass --force if you want it replaced.\n" % path)
+        return 2
+
+    upstreams, sources, skipped = _discover_upstreams()
+    imported = bool(upstreams)
+    if not imported:
+        upstreams = dict(_TEMPLATE_SERVERS)
+
+    config = {
+        "servers": upstreams,
+        "policy": {
+            # Nothing is denied by default. A deny list the user did not write
+            # is a deny list they will not trust, and the first tool it blocks
+            # looks like a bug rather than a policy.
+            "deny_tools": [],
+            "allow_tools": None,
+            "pii_policy": "warn",
+            "namespace": True,
+            "fail_closed": True,
+            "rate_limit_interval": 0,
+        },
+        "audit": {"path": "gateway-audit.jsonl"},
+        "output_rules": [],
+    }
+
+    try:
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(config, fh, indent=2)
+            fh.write("\n")
+    except OSError as exc:
+        sys.stderr.write("Could not write %s: %s\n" % (path, exc))
+        return 2
+
+    out = sys.stderr.write
+    out("\nWrote %s\n\n" % path)
+    if imported:
+        for label, src, n in sources:
+            out("  imported %d server%s from %s\n" % (n, "" if n == 1 else "s", label))
+            out("    %s\n" % src)
+        out("\n  upstreams: %s\n" % ", ".join(sorted(upstreams)))
+    else:
+        out("  No existing MCP configuration was found, so the file contains two\n"
+            "  example servers. Edit `servers` to point at your own before starting.\n")
+    if skipped:
+        out("\n  skipped:\n")
+        for name, why in skipped:
+            out("    %s - %s\n" % (name, why))
+
+    out("\nNext\n")
+    out("  1. sovereign-mcp-gateway --config %s --check\n" % path)
+    out("     Connects to each upstream and prints the merged tool catalogue.\n")
+    out("  2. Add anything you want refused to policy.deny_tools.\n")
+    out("  3. Point your MCP client at the gateway instead of at those servers.\n")
+    if imported:
+        out("\n  Your client still lists those servers directly. Replace them with a\n"
+            "  single entry for the gateway, or it will keep talking to them as well\n"
+            "  as through it, and the audit trail will only show half the traffic.\n")
+    out("\n  Optional layers are separate installs:\n")
+    out("     pip install \"sovereign-mcp-gateway[all]\"\n\n")
+    return 0
 
 
 def _check(config):

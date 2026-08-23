@@ -8,8 +8,11 @@
 
 ```bash
 pip install sovereign-mcp-gateway
-sovereign-mcp-gateway --config gateway.json
+sovereign-mcp-gateway --init          # writes gateway.json from the servers you already run
+sovereign-mcp-gateway --config gateway.json --check
 ```
+
+`--init` reads the MCP configuration you already have (Claude Desktop, Claude Code, Cursor, VS Code or Windsurf) and writes a `gateway.json` that proxies those same servers, so the first run produces a working config rather than a configuration error. It will not import the gateway's own entry, because that would make it proxy itself.
 
 The gateway is itself an MCP server, so any client that speaks MCP works with no changes.
 
@@ -42,6 +45,32 @@ A library has to be adopted by whoever wrote the server. A proxy protects server
 It also gives you one place to hold policy and one audit trail across every server an agent can reach, rather than per-server configuration nobody keeps in sync.
 
 ## Configure
+
+### Start from what you already run
+
+```
+$ sovereign-mcp-gateway --init
+
+Wrote gateway.json
+
+  imported 3 servers from Claude Desktop
+    /Users/you/Library/Application Support/Claude/claude_desktop_config.json
+  imported 1 server from VS Code (project)
+
+  upstreams: fetch, git, sqlite, time
+
+  skipped:
+    sovereign - this gateway - importing it would proxy itself
+    notion    - no command, probably a remote/SSE server
+    git       - already imported from another client
+```
+
+Four things it will not do: import itself, import a remote server it cannot launch as a subprocess, overwrite an existing file without `--force`, or write a `deny_tools` list you did not choose. It writes the file, tells you what it took and what it left, and stops.
+
+Pass `--config PATH` alongside `--init` to write somewhere other than `./gateway.json`.
+
+After running it, replace those servers in your client with a single entry for the gateway. Leaving both means your agent talks to them directly as well as through the proxy, and the audit trail will only show half the traffic.
+
 
 ```json
 {

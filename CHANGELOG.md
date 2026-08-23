@@ -5,6 +5,44 @@ All notable changes to this project are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-08-23
+
+### Added
+
+- **`--init`.** The gateway is a proxy, so without a `gateway.json` listing
+  upstreams it exited with a configuration error on first launch. Every
+  distribution channel assumes "install it and it runs", and that mismatch turns
+  installs into uninstalls.
+
+  `--init` reads the MCP configuration already present in Claude Desktop, Claude
+  Code, Cursor, VS Code or Windsurf, and writes a `gateway.json` proxying those
+  same servers.
+
+  ```
+  $ sovereign-mcp-gateway --init
+  Wrote gateway.json
+    imported 3 servers from Claude Desktop
+    upstreams: fetch, git, sqlite
+    skipped:
+      sovereign - this gateway - importing it would proxy itself
+      notion    - no command, probably a remote/SSE server
+  ```
+
+  It refuses four things: importing its own entry (which would make the gateway
+  proxy itself, easy to hit on a second `--init` after the client has been
+  repointed), importing remote/SSE entries that have no `command` and cannot be
+  launched as a subprocess, overwriting an existing file without `--force`, and
+  writing a `deny_tools` list the user did not choose.
+
+  Duplicate names across clients are deduplicated rather than silently
+  overwritten, and a name containing the `__` namespace separator is sanitised
+  so it cannot collide with `upstream__tool` addressing.
+
+- `--force`, to overwrite an existing config with `--init`.
+- Ten tests covering every one of those cases, including a malformed client
+  config, and asserting the generated file loads through the gateway's own
+  `Config` rather than merely being valid JSON.
+
 ## [0.2.3] — 2026-08-23
 
 ### Security
@@ -221,6 +259,7 @@ First release.
 - **`pii_policy` defaults to `warn`, not `block`.** Real tools return personal
   data as normal output; every `git log` entry carries an author email.
 
+[0.3.0]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.3.0
 [0.2.3]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.2.3
 [0.2.2]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.2.2
 [0.2.1]: https://github.com/mattijsmoens/sovereign-mcp-gateway/releases/tag/v0.2.1
