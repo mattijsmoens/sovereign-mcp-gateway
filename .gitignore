@@ -10,3 +10,6 @@ venv/
 *.jsonl.head
 gateway.json
 !examples/*.json
+# release tooling, downloaded on demand, not part of the package
+mcp-publisher
+mcp-publisher.exe
