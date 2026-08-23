@@ -5,7 +5,7 @@
 See `sovereign_gateway.gateway` for the chain and the configuration format.
 """
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 __all__ = ["Config", "Gateway", "GatewayError", "serve", "main"]
 
